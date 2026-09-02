@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ILMU Service Triage</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>Service Triage <span class="badge" id="mode">…</span></h1>
+        <p class="sub">
+          Paste a customer message in Bahasa Malaysia, English, Chinese or Manglish.
+          The browser calls <code>/api/triage</code> only — ILMU is called server-side.
+        </p>
+      </header>
+
+      <section class="panel">
+        <div class="row">
+          <label>Channel
+            <select id="channel">
+              <option value="web">web</option>
+              <option value="whatsapp">whatsapp</option>
+              <option value="email">email</option>
+              <option value="phone">phone</option>
+            </select>
+          </label>
+          <label>Customer tier
+            <select id="tier">
+              <option value="standard">standard</option>
+              <option value="free">free</option>
+              <option value="enterprise">enterprise</option>
+            </select>
+          </label>
+        </div>
+
+        <textarea id="message" rows="6" placeholder="e.g. Bil saya bulan ni RM320, tapi biasa RM90 je. Tolong semak, kalau tak saya report kat MCMC."></textarea>
+
+        <div class="row">
+          <button id="submit">Triage</button>
+          <div class="samples" id="samples"></div>
+        </div>
+      </section>
+
+      <section id="result"></section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
