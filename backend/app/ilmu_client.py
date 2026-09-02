@@ -6,8 +6,22 @@ import httpx
 
 from .config import Settings
 from .prompts import SYSTEM_PROMPT, build_user_prompt
+from .schemas import Triage
 
 _JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
+
+# Grammar-constrained decoding: ILMU masks any token that would violate this
+# schema at each decode step, so the model cannot emit an off-contract object.
+# The schema is generated from the same Pydantic model the API returns, so the
+# prompt and the response contract can never drift apart.
+TRIAGE_RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "triage",
+        "strict": True,
+        "schema": {**Triage.model_json_schema(), "additionalProperties": False},
+    },
+}
 
 
 class IlmuError(RuntimeError):
@@ -15,7 +29,7 @@ class IlmuError(RuntimeError):
 
 
 def _extract_json(text: str) -> dict:
-    """Models sometimes wrap JSON in prose or a code fence. Be tolerant, once."""
+    """Belt and braces: json_schema mode should make this unnecessary."""
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -29,8 +43,8 @@ def _extract_json(text: str) -> dict:
 class IlmuClient:
     """Thin, OpenAI-compatible wrapper around the ILMU chat endpoint.
 
-    Owns: auth, timeout, bounded retry with backoff, and response parsing.
-    Nothing in here is reachable from the browser.
+    Owns: auth, timeout, bounded retry with backoff, schema-constrained decoding
+    and response parsing. Nothing in here is reachable from the browser.
     """
 
     def __init__(self, settings: Settings, client: httpx.AsyncClient):
@@ -44,8 +58,10 @@ class IlmuClient:
         payload = {
             "model": self._s.ilmu_model,
             "temperature": 0.2,
-            "response_format": {"type": "json_object"},
+            "response_format": TRIAGE_RESPONSE_FORMAT,
             "messages": [
+                # The system prompt is identical on every call, so ILMU's prompt
+                # cache serves it: watch `cached_tokens` climb across requests.
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": build_user_prompt(message, channel, customer_tier)},
             ],
@@ -67,8 +83,7 @@ class IlmuClient:
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise IlmuError(f"retryable upstream status {resp.status_code}")
                 resp.raise_for_status()
-                content = resp.json()["choices"][0]["message"]["content"]
-                return _extract_json(content), "ilmu"
+                return _extract_json(resp.json()["choices"][0]["message"]["content"]), "ilmu"
             except (httpx.TimeoutException, httpx.TransportError, IlmuError, KeyError) as exc:
                 last_error = exc
                 if attempt < self._s.ilmu_max_retries:
@@ -86,14 +101,14 @@ def _mock_triage(message: str) -> dict:
     zh = any("一" <= ch <= "鿿" for ch in message)
     ms = any(w in lowered for w in ("saya", "tidak", "boleh", "tolong", "bil", "akaun"))
     lang = "zh" if zh else "ms" if ms else "manglish" if "lah" in lowered or "cannot" in lowered else "en"
-    angry = any(w in lowered for w in ("refund", "lawyer", "bnm", "mcmc", "terrible", "scam", "投诉"))
+    angry = any(w in lowered for w in ("refund", "lawyer", "bnm", "mcmc", "terrible", "scam"))
     return {
         "language": lang,
         "category": "billing" if any(w in lowered for w in ("bill", "charge", "bil", "refund")) else "technical",
         "priority": "P1" if angry else "P3",
         "sentiment": "angry" if angry else "neutral",
         "summary_en": f"[MOCK] Customer message about: {message.strip()[:90]}",
-        "reply_draft": "[MOCK MODE — set ILMU_API_KEY to call the real model] "
+        "reply_draft": "[MOCK MODE - set ILMU_API_KEY to call the real model] "
                        "Thanks for reaching out. We're checking your account now and will revert shortly.",
         "suggested_queue": "billing_ops" if angry else "tier1_support",
         "needs_human": angry,

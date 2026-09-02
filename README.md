@@ -30,16 +30,15 @@ Browser (TS/Vite)  ──POST /api/triage──►  FastAPI          ──►  
                                            • JSONL audit log (message hashed, not stored)
 ```
 
-## Run it (2 commands)
+## Run it (one command)
 
 ```bash
-# 1. backend  → http://127.0.0.1:8000
-cd backend && cp .env.example .env      # add ILMU_API_KEY, or leave blank for mock mode
-.venv/Scripts/python -m uvicorn app.main:app --reload   # macOS/Linux: .venv/bin/python
-
-# 2. frontend → http://localhost:5173
-cd frontend && npm run dev
+cp backend/.env.example backend/.env    # add your ILMU_API_KEY
+npm install                             # once
+npm run dev                             # starts API :8000 + web :5173 together
 ```
+
+Open http://localhost:5173. `npm run dev:api` / `npm run dev:web` run either half alone.
 
 With no key set, the service runs a deterministic stub so the demo never depends on
 credentials. `GET /api/health` tells you which mode you're in.
@@ -58,12 +57,16 @@ credentials. `GET /api/health` tells you which mode you're in.
   "triage": { "language": "ms", "category": "billing", "priority": "P1",
               "sentiment": "angry", "summary_en": "...", "reply_draft": "...",
               "suggested_queue": "retention", "needs_human": true, "confidence": 0.42 },
-  "model": "ilmu-chat", "latency_ms": 812, "source": "ilmu",
+  "model": "ilmu-v3.1", "latency_ms": 2449, "source": "ilmu",
   "policy_flags": ["regulator_mentioned", "low_confidence"] }
 ```
 
-The response is validated against a Pydantic model before it leaves the service. If ILMU
-drifts off-contract, the caller gets a 502 with a request id — never a malformed payload.
+The response shape is enforced twice. First at decode time: the client sends
+`response_format: {"type": "json_schema"}` built from the *same* Pydantic model the API
+returns, so ILMU masks any token that would violate the schema and the prompt can never
+drift from the contract. Then again on the way out, by validating with that model — if a
+response still arrives off-contract the caller gets a 502 with a request id, never a
+malformed payload.
 
 ## Audit trail
 
@@ -73,7 +76,7 @@ was classified and why:
 
 ```json
 {"ts":"2026-09-02T12:39:11+0800","request_id":"9dad2e6b23be","message_sha256":"68830097e098d526",
- "model":"ilmu-chat","latency_ms":812,"priority":"P1","queue":"retention","needs_human":true,
+ "model":"ilmu-v3.1","latency_ms":2449,"priority":"P1","queue":"retention","needs_human":true,
  "confidence":0.42,"policy_flags":["regulator_mentioned","low_confidence"]}
 ```
 

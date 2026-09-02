@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     ilmu_api_key: str = ""
     ilmu_base_url: str = "https://api.ilmu.ai/v1"
-    ilmu_model: str = "ilmu-chat"
+    ilmu_model: str = "ilmu-v3.1"
     ilmu_timeout_seconds: float = 25.0
     ilmu_max_retries: int = 2
     ilmu_mock: bool = False
