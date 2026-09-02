@@ -24,11 +24,16 @@ you can diff, not a prompt.
 Browser (TS/Vite)  ──POST /api/triage──►  FastAPI          ──►  ILMU /chat/completions
   no key, no                               • key + prompt        (server-side only)
   ILMU hostname                            • timeout 25s, 2 retries w/ backoff
-  in the bundle                            • Pydantic contract validation
+  in the bundle                            • json_schema-constrained decoding
+                                           • Pydantic contract validation
                                            • deterministic policy rules
                                            • per-IP rate limit
-                                           • JSONL audit log (message hashed, not stored)
+                                           • SQLite audit trail (message hashed)
 ```
+
+**It never replies to the customer.** The service classifies, routes, and drafts; a human
+sends. `needs_human` is about whether an agent must *review the draft before it goes out* —
+not about whether a bot is allowed to answer on its own.
 
 ## Run it
 
@@ -51,10 +56,8 @@ npm install && npm run dev              # API :8100 + Vite :5173 together
 ```
 
 `npm run dev:api` / `npm run dev:web` run either half alone. With no key set the service
-falls back to a deterministic stub, so the demo never depends on credentials.
-
-With no key set, the service runs a deterministic stub so the demo never depends on
-credentials. `GET /api/health` tells you which mode you're in.
+falls back to a deterministic stub, so the demo never depends on credentials —
+`GET /api/health` tells you which mode you're in.
 
 ## The contract
 
@@ -66,13 +69,16 @@ credentials. `GET /api/health` tells you which mode you're in.
 ```
 
 ```json
-{ "request_id": "9dad2e6b23be",
+{ "request_id": "87377f9b6697",
   "triage": { "language": "ms", "category": "billing", "priority": "P1",
               "sentiment": "angry", "summary_en": "...", "reply_draft": "...",
-              "suggested_queue": "retention", "needs_human": true, "confidence": 0.42 },
+              "suggested_queue": "retention", "needs_human": true, "confidence": 0.95 },
   "model": "ilmu-v3.1", "latency_ms": 2449, "source": "ilmu",
-  "policy_flags": ["regulator_mentioned", "low_confidence"] }
+  "policy_flags": ["regulator_mentioned"] }
 ```
+
+ILMU classified this one as P1 on its own. The `regulator_mentioned` flag means it would
+have been forced to P1 regardless — the rule does not trust the model to get it right.
 
 The response shape is enforced twice. First at decode time: the client sends
 `response_format: {"type": "json_schema"}` built from the *same* Pydantic model the API
