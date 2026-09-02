@@ -49,6 +49,13 @@ SHA-256 of the message and the routing decision — enough to prove what was dec
 holding personal data. This is a PDPA posture decision, so confirm it with whoever owns
 that before flipping it either way.
 
+**Expected side effect:** with it off, the History table's message column falls back to the
+hash, and the comparison view shows *"not retained · AUDIT_STORE_CONTENT=0"* for message,
+summary and draft reply. That is correct behaviour, not a failure — those columns were never
+written. The UI says so explicitly so the two cases can't be confused. If this deployment is
+a demo rather than real customer traffic, `AUDIT_STORE_CONTENT=1` makes the comparison view
+show the full diff.
+
 ### 1.3 There is no authentication
 
 `POST /api/triage` is open to anyone who can reach the port. There is a per-IP rate limit

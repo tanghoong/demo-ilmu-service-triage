@@ -18,6 +18,8 @@ const PAGE_SIZE = 8;
 let records: AuditRecord[] = [];
 let total = 0;
 let page = 0;
+/** False when AUDIT_STORE_CONTENT is off: the content columns were never written. */
+let storesContent = true;
 /** Kept across pages so two runs can be compared even when they are not adjacent. */
 const pinned = new Map<string, AuditRecord>();
 
@@ -38,7 +40,11 @@ $("samples").addEventListener("click", (e) => {
 });
 
 health()
-  .then((h) => ($("mode").textContent = `${h.mode} · ${h.model}`))
+  .then((h) => {
+    $("mode").textContent = `${h.mode} · ${h.model}`;
+    storesContent = h.stores_content;
+    if (!storesContent) drawHistory(); // re-render with the retention notice
+  })
   .catch(() => ($("mode").textContent = "backend offline"));
 
 submit.addEventListener("click", async () => {
@@ -161,7 +167,12 @@ function drawHistory(): void {
     compareEl.innerHTML = "";
     return;
   }
-  historyEl.innerHTML = `<div class="table-scroll"><table class="hist">
+  const notice = storesContent ? "" : `<p class="retention-note">
+    Content retention is off on this deployment, so the message, summary and draft reply
+    were never written to the audit trail — only the decision and a SHA-256 of the message.
+    Set <code>AUDIT_STORE_CONTENT=1</code> to retain them.</p>`;
+
+  historyEl.innerHTML = notice + `<div class="table-scroll"><table class="hist">
     <thead><tr>
       <th></th><th>Time</th><th>Message</th><th>Lang</th><th>Pri</th><th>Queue</th>
       <th>Tier</th><th>Human</th><th>Conf</th><th>Flags</th><th>ms</th><th></th>
@@ -212,10 +223,16 @@ function drawCompare(): void {
   }
   const [a, b] = [...pinned.values()];
 
+  // A null content field is a policy outcome, not a load failure — say which.
+  const cell = (v?: string | null) =>
+    v != null ? esc(v)
+      : storesContent ? "—"
+      : `<span class="not-retained">not retained · AUDIT_STORE_CONTENT=0</span>`;
+
   const field = (label: string, x?: string | null, y?: string | null) => {
     const differs = (x ?? "") !== (y ?? "");
     return `<tr class="${differs ? "differs" : ""}">
-      <th>${esc(label)}</th><td>${esc(x ?? "—")}</td><td>${esc(y ?? "—")}</td></tr>`;
+      <th>${esc(label)}</th><td>${cell(x)}</td><td>${cell(y)}</td></tr>`;
   };
 
   compareEl.innerHTML = `

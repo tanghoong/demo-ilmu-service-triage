@@ -153,3 +153,10 @@ table.cmp td { width: 40%; white-space: pre-wrap; max-height: 76px; overflow: hi
 table.cmp tr.differs { background: #fff9e8; }
 table.cmp tr.differs th { color: #96610c; }
 .cmp-head { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; }
+
+.not-retained { color: var(--muted); font-style: italic; font-size: 12px; }
+.retention-note {
+  color: #96610c; background: #fff9e8; border: 1px solid #f0d18d;
+  border-radius: 7px; padding: 7px 11px; margin: 0 0 9px; font-size: 12.5px; line-height: 1.5;
+}
+.retention-note code { background: #fdf1d4; padding: 1px 5px; border-radius: 4px; }
