@@ -1,0 +1,19 @@
+services:
+  triage:
+    build: .
+    image: ilmu-service-triage:latest
+    ports:
+      - "8100:8000"
+    environment:
+      # The key is read from your shell / .env — never baked into the image.
+      ILMU_API_KEY: ${ILMU_API_KEY:?set ILMU_API_KEY in .env or your shell}
+      ILMU_BASE_URL: ${ILMU_BASE_URL:-https://api.ilmu.ai/v1}
+      ILMU_MODEL: ${ILMU_MODEL:-ilmu-v3.1}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+    volumes:
+      # Audit log survives container restarts.
+      - triage-audit:/srv/data
+    restart: unless-stopped
+
+volumes:
+  triage-audit:

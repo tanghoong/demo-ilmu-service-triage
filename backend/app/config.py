@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     allowed_origins: str = "http://localhost:5173"
     rate_limit_per_minute: int = 20
-    audit_log_path: str = "./audit.log.jsonl"
+    audit_db_path: str = "./audit.db"
 
     @property
     def origins(self) -> list[str]:

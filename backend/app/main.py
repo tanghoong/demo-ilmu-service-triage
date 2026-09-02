@@ -2,10 +2,12 @@ import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from . import audit, policy
@@ -20,9 +22,11 @@ _hits: dict[str, deque[float]] = defaultdict(deque)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # One pooled client for the process — not one per request.
+    audit.init(settings.audit_db_path)
     async with httpx.AsyncClient(limits=httpx.Limits(max_connections=20)) as http:
         app.state.ilmu = IlmuClient(settings, http)
         yield
+    audit.close()
 
 
 app = FastAPI(title="ILMU Service Triage", version="0.1.0", lifespan=lifespan)
@@ -54,6 +58,12 @@ async def health() -> dict:
     }
 
 
+@app.get("/api/audit")
+async def audit_recent(limit: int = 20) -> dict:
+    """The audit trail, queryable. Every decision this service has ever made."""
+    return {"stats": audit.stats(), "recent": audit.recent(min(limit, 200))}
+
+
 @app.post("/api/triage", response_model=TriageResponse)
 async def triage(payload: TriageRequest, request: Request) -> TriageResponse:
     _rate_limit(request)
@@ -77,7 +87,6 @@ async def triage(payload: TriageRequest, request: Request) -> TriageResponse:
 
     latency_ms = int((time.perf_counter() - started) * 1000)
     audit.write(
-        settings.audit_log_path,
         request_id=request_id,
         message=payload.message,
         triage=validated.model_dump(),
@@ -95,3 +104,11 @@ async def triage(payload: TriageRequest, request: Request) -> TriageResponse:
         source=source,
         policy_flags=flags,
     )
+
+
+# In the container the built frontend is copied next to the app and served from
+# the same origin as /api, so the browser needs no CORS and no second port.
+# Mounted last so it never shadows an /api route.
+_STATIC = Path(__file__).resolve().parent.parent / "static"
+if _STATIC.is_dir():
+    app.mount("/", StaticFiles(directory=_STATIC, html=True), name="static")

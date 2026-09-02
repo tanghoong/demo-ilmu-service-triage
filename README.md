@@ -30,15 +30,28 @@ Browser (TS/Vite)  ──POST /api/triage──►  FastAPI          ──►  
                                            • JSONL audit log (message hashed, not stored)
 ```
 
-## Run it (one command)
+## Run it
+
+**Docker (how it deploys):**
+
+```bash
+echo "ILMU_API_KEY=sk-..." > .env
+docker compose up -d --build      # one container, one port
+```
+
+Open **http://localhost:8100**. The image builds the frontend in a node stage and copies
+the static bundle into the Python stage, so the browser gets the UI and the API from the
+same origin — no CORS, no second service, nothing to reverse-proxy.
+
+**Local dev (hot reload):**
 
 ```bash
 cp backend/.env.example backend/.env    # add your ILMU_API_KEY
-npm install                             # once
-npm run dev                             # starts API :8000 + web :5173 together
+npm install && npm run dev              # API :8100 + Vite :5173 together
 ```
 
-Open http://localhost:5173. `npm run dev:api` / `npm run dev:web` run either half alone.
+`npm run dev:api` / `npm run dev:web` run either half alone. With no key set the service
+falls back to a deterministic stub, so the demo never depends on credentials.
 
 With no key set, the service runs a deterministic stub so the demo never depends on
 credentials. `GET /api/health` tells you which mode you're in.
@@ -70,22 +83,48 @@ malformed payload.
 
 ## Audit trail
 
-Every call appends one line to `audit.log.jsonl`. The customer's text is stored as a
-truncated SHA-256, not in plaintext — PDPA-friendly by default, still enough to prove what
-was classified and why:
+Every decision is a row in SQLite (`/srv/data/audit.db`, on a named volume so it survives
+restarts). The customer's text is stored as a truncated SHA-256, never in plaintext —
+PDPA-friendly by default, still enough to prove what was classified and to spot duplicates.
+
+SQLite because an audit trail has to be *queryable* — "show me every P1 the model wanted to
+auto-close last week" is a `WHERE`, not a `grep` over log files — and because it ships with
+zero extra infrastructure. The same schema moves to Postgres when it outgrows one box.
+
+`GET /api/audit` returns the trail plus the numbers an ops lead actually asks for:
 
 ```json
-{"ts":"2026-09-02T12:39:11+0800","request_id":"9dad2e6b23be","message_sha256":"68830097e098d526",
- "model":"ilmu-v3.1","latency_ms":2449,"priority":"P1","queue":"retention","needs_human":true,
- "confidence":0.42,"policy_flags":["regulator_mentioned","low_confidence"]}
+{"total": 4,
+ "by_priority": {"P1": 2, "P2": 1, "P4": 1},
+ "by_language": {"ms": 1, "en": 1, "zh": 1, "manglish": 1},
+ "human_review_rate": 0.5,
+ "p50_latency_ms": 2042}
 ```
+
+## Deployment footprint
+
+Measured on the running container, not estimated:
+
+| | |
+|---|---|
+| Image | 246 MB (python:3.12-slim; frontend built in a discarded node stage) |
+| RAM, idle | 42 MB |
+| RAM, 12 concurrent requests | 43 MB |
+| CPU, 12 concurrent requests | under 1% of one core |
+| 12 concurrent triages | 2.7 s wall, p50 2.3 s |
+
+The service is I/O-bound — nearly all wall time is the ILMU round trip, and the process is
+async, so concurrency costs sockets rather than CPU. **1 vCPU / 1 GB RAM is enough**, and
+that leaves ~10x headroom on RAM. The container runs as a non-root user (uid 10001) and has
+a `HEALTHCHECK`, so it drops into ECS/Cloud Run/Kubernetes as-is.
 
 ## What I'd add next
 
 | Next | Why |
 |---|---|
-| Redis for rate limits + response cache | the in-memory bucket dies with the process and doesn't survive multiple replicas |
+| Redis for rate limits + response cache | the in-memory bucket dies with the process and isn't shared across replicas |
 | Idempotency key on `/api/triage` | WhatsApp webhooks retry; we shouldn't pay for the same triage twice |
-| Ship the audit JSONL to a warehouse | measure per-language accuracy, then tune the prompt against real traffic |
-| Streaming for the draft reply | agents see the first tokens in ~300 ms instead of waiting for the full JSON |
+| Postgres + a warehouse sink for the audit table | measure per-language accuracy, then tune the prompt against real traffic |
+| Ground the reply draft in a retrieved KB | it hallucinated support hours in testing — the draft must only assert facts from retrieved context |
+| Streaming for the draft reply | agents see the first tokens in ~300 ms instead of waiting 2 s for the full JSON |
 | Per-tenant key + quota | multi-tenant BPO, one deployment |
