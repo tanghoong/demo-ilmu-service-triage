@@ -114,3 +114,43 @@ code { font-family: ui-monospace, "Cascadia Mono", monospace; }
   h1 { font-size: 27px; }
   .panel { padding: 22px 20px; }
 }
+
+/* ---- history + comparison ---- */
+.history-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.history-head h2 { font-size: 21px; color: var(--blue-deep); margin: 0; }
+.history-actions { display: flex; gap: 8px; }
+.count {
+  font-size: 14px; background: var(--blue-soft); color: var(--blue);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; margin-left: 6px;
+}
+button.ghost.danger { color: #a51c1c; border-color: #f3bcbc; }
+button.ghost.danger:hover { background: #fdecec; border-color: #e79b9b; }
+.hint { color: var(--muted); font-size: 14.5px; margin: 8px 0 18px; }
+
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.tile {
+  display: flex; flex-direction: column; gap: 3px; min-width: 118px;
+  background: var(--blue-soft); border: 1px solid #cfe0f6; border-radius: 11px; padding: 12px 16px;
+}
+.tile-v { font-size: 19px; font-weight: 600; color: var(--blue-deep); }
+.tile-l { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+.table-scroll { overflow-x: auto; }
+table.hist, table.cmp { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+table.hist th, table.cmp th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: .05em; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+table.hist td, table.cmp td { padding: 10px 11px; border-bottom: 1px solid #eaf0f8; color: var(--ink); vertical-align: top; }
+table.hist tbody tr { cursor: pointer; }
+table.hist tbody tr:hover { background: #f7fafe; }
+table.hist tr.picked { background: var(--blue-soft); }
+table.hist input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; pointer-events: none; }
+.mono { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 13.5px; }
+button.link { background: none; border: 0; color: #a3adbb; font-size: 15px; padding: 2px 6px; cursor: pointer; }
+button.link:hover { color: #a51c1c; background: #fdecec; border-radius: 5px; }
+
+table.cmp { margin-top: 6px; }
+table.cmp th:first-child { width: 130px; }
+table.cmp td { width: 40%; white-space: pre-wrap; }
+table.cmp tr.differs { background: #fff9e8; }
+table.cmp tr.differs th { color: #96610c; }
+.error-inline { color: #a51c1c; font-size: 14.5px; }

@@ -52,7 +52,8 @@ same origin — no CORS, no second service, nothing to reverse-proxy.
 
 ```bash
 cp backend/.env.example backend/.env    # add your ILMU_API_KEY
-npm install && npm run dev              # API :8100 + Vite :5173 together
+npm install && npm run setup            # once: node deps + python venv
+npm run dev                             # API :8100 + Vite :5173 together
 ```
 
 `npm run dev:api` / `npm run dev:web` run either half alone. With no key set the service
@@ -96,6 +97,19 @@ PDPA-friendly by default, still enough to prove what was classified and to spot 
 SQLite because an audit trail has to be *queryable* — "show me every P1 the model wanted to
 auto-close last week" is a `WHERE`, not a `grep` over log files — and because it ships with
 zero extra infrastructure. The same schema moves to Postgres when it outgrows one box.
+
+The UI reads this trail back as a **History** table — every past decision with its
+priority, queue, flags and latency. Tick any two rows and it diffs them field by field,
+highlighting where the decisions diverged. Send the same message as `standard` and then as
+`enterprise` and the diff shows the `enterprise_sla_uplift` rule moving P3 to P2.
+
+`GET /api/audit` (list, with `limit`/`offset`), `GET /api/audit/{id}`,
+`DELETE /api/audit/{id}` and `DELETE /api/audit` back it. A production audit log is
+append-only; the deletes exist so the demo can be reset.
+
+The model's summary and draft reply are retained only when `AUDIT_STORE_CONTENT` is on —
+on for the demo so runs can be compared, off in production, where the queue and the flags
+are the record that matters.
 
 `GET /api/audit` returns the trail plus the numbers an ops lead actually asks for:
 

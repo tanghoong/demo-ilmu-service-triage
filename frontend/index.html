@@ -35,7 +35,8 @@
           </label>
         </div>
 
-        <textarea id="message" rows="8" placeholder="e.g. Bil saya bulan ni RM320, tapi biasa RM90 je. Tolong semak, kalau tak saya report kat MCMC."></textarea>
+        <textarea id="message" rows="8" maxlength="4000"
+          placeholder="e.g. Bil saya bulan ni RM320, tapi biasa RM90 je. Tolong semak, kalau tak saya report kat MCMC."></textarea>
 
         <div class="row">
           <button id="submit">Triage</button>
@@ -44,6 +45,23 @@
       </section>
 
       <section id="result"></section>
+
+      <section class="panel" id="history-panel">
+        <div class="history-head">
+          <h2>History <span class="count" id="history-count"></span></h2>
+          <div class="history-actions">
+            <button class="ghost" id="refresh">Refresh</button>
+            <button class="ghost danger" id="clear">Clear all</button>
+          </div>
+        </div>
+        <p class="hint">
+          Read back from the SQLite audit trail on the server, not from this browser.
+          Tick any two rows to compare them side by side.
+        </p>
+        <div id="stats" class="stats"></div>
+        <div id="history"></div>
+        <div id="compare"></div>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

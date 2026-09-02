@@ -8,18 +8,42 @@ from .config import Settings
 from .prompts import SYSTEM_PROMPT, build_user_prompt
 from .schemas import Triage
 
-_JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
+# Non-greedy from the first "{" so trailing prose after the object cannot be
+# swallowed into an invalid slice.
+_JSON_BLOCK = re.compile(r"\{.*?\}(?=\s*$)", re.DOTALL)
+
+# Keys that describe a value for humans or add constraints the API's strict
+# schema validator rejects. Pydantic still enforces the real bounds on the way
+# out, so dropping them here costs nothing.
+_STRIP_KEYS = ("title", "description", "minimum", "maximum", "default")
+
+
+def _wire_schema(schema: dict) -> dict:
+    """Strip annotations the strict validator rejects, at every level."""
+    cleaned = {k: v for k, v in schema.items() if k not in _STRIP_KEYS}
+    if cleaned.get("type") == "object":
+        cleaned["additionalProperties"] = False
+        cleaned["properties"] = {
+            name: _wire_schema(sub) for name, sub in cleaned.get("properties", {}).items()
+        }
+    for container in ("$defs", "definitions"):
+        if container in cleaned:
+            cleaned[container] = {k: _wire_schema(v) for k, v in cleaned[container].items()}
+    if "items" in cleaned:
+        cleaned["items"] = _wire_schema(cleaned["items"])
+    return cleaned
+
 
 # Grammar-constrained decoding: ILMU masks any token that would violate this
 # schema at each decode step, so the model cannot emit an off-contract object.
-# The schema is generated from the same Pydantic model the API returns, so the
-# prompt and the response contract can never drift apart.
+# Generated from the same Pydantic model the API returns, so the prompt and the
+# response contract can never drift apart.
 TRIAGE_RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {
         "name": "triage",
         "strict": True,
-        "schema": {**Triage.model_json_schema(), "additionalProperties": False},
+        "schema": _wire_schema(Triage.model_json_schema()),
     },
 }
 
@@ -31,13 +55,18 @@ class IlmuError(RuntimeError):
 def _extract_json(text: str) -> dict:
     """Belt and braces: json_schema mode should make this unnecessary."""
     try:
-        return json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError:
-        pass
-    match = _JSON_BLOCK.search(text)
-    if not match:
-        raise IlmuError("ILMU returned no parsable JSON object")
-    return json.loads(match.group(0))
+        match = _JSON_BLOCK.search(text.strip())
+        if not match:
+            raise IlmuError("ILMU returned no parsable JSON object") from None
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise IlmuError(f"ILMU returned malformed JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise IlmuError(f"ILMU returned {type(parsed).__name__}, expected a JSON object")
+    return parsed
 
 
 class IlmuClient:
@@ -83,28 +112,46 @@ class IlmuClient:
                 if resp.status_code in (429, 500, 502, 503, 504):
                     raise IlmuError(f"retryable upstream status {resp.status_code}")
                 resp.raise_for_status()
-                return _extract_json(resp.json()["choices"][0]["message"]["content"]), "ilmu"
-            except (httpx.TimeoutException, httpx.TransportError, IlmuError, KeyError) as exc:
+                return _extract_json(_content_of(resp)), "ilmu"
+            except httpx.HTTPStatusError as exc:  # 4xx: retrying will not help
+                raise IlmuError(f"ILMU rejected the request: {exc.response.status_code}") from exc
+            except (
+                httpx.TimeoutException, httpx.TransportError, IlmuError,
+                KeyError, IndexError, TypeError, ValueError,  # malformed envelope
+            ) as exc:
                 last_error = exc
                 if attempt < self._s.ilmu_max_retries:
                     await asyncio.sleep(0.4 * (2**attempt))  # 0.4s, 0.8s
                 continue
-            except httpx.HTTPStatusError as exc:  # 4xx: retrying will not help
-                raise IlmuError(f"ILMU rejected the request: {exc.response.status_code}") from exc
 
         raise IlmuError(f"ILMU unavailable after {self._s.ilmu_max_retries + 1} attempts: {last_error}")
+
+
+def _content_of(resp: httpx.Response) -> str:
+    """A 200 is not a promise of a well-formed envelope. Fail as a retryable error."""
+    body = resp.json()  # ValueError on non-JSON -> caught as retryable above
+    choices = body.get("choices") or []
+    if not choices:
+        raise IlmuError("ILMU returned no choices")
+    content = choices[0].get("message", {}).get("content")
+    if not isinstance(content, str):
+        raise IlmuError("ILMU returned no message content")
+    return content
 
 
 def _mock_triage(message: str) -> dict:
     """Deterministic stand-in so the demo runs with no key and no network."""
     lowered = message.lower()
-    zh = any("一" <= ch <= "鿿" for ch in message)
-    ms = any(w in lowered for w in ("saya", "tidak", "boleh", "tolong", "bil", "akaun"))
-    lang = "zh" if zh else "ms" if ms else "manglish" if "lah" in lowered or "cannot" in lowered else "en"
-    angry = any(w in lowered for w in ("refund", "lawyer", "bnm", "mcmc", "terrible", "scam"))
+    words = set(re.findall(r"[a-z]+", lowered))
+    zh = bool(re.search(r"[一-鿿]", message))
+    ms = bool(words & {"saya", "tidak", "boleh", "tolong", "bil", "akaun", "kalau"})
+    manglish = bool(words & {"lah", "lor", "ah", "cannot", "wah"})
+    lang = "zh" if zh else "ms" if ms else "manglish" if manglish else "en"
+    angry = bool(words & {"refund", "lawyer", "bnm", "mcmc", "terrible", "scam"})
+    billing = bool(words & {"bill", "charge", "charged", "bil", "refund", "invoice"}) or "扣款" in message
     return {
         "language": lang,
-        "category": "billing" if any(w in lowered for w in ("bill", "charge", "bil", "refund")) else "technical",
+        "category": "billing" if billing else "technical",
         "priority": "P1" if angry else "P3",
         "sentiment": "angry" if angry else "neutral",
         "summary_en": f"[MOCK] Customer message about: {message.strip()[:90]}",

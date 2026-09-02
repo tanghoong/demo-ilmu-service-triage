@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:5173"
     rate_limit_per_minute: int = 20
     audit_db_path: str = "./audit.db"
+    # Retain the model's summary and draft reply. On for the demo so runs can
+    # be compared; off in production, where flags and queue are the record.
+    audit_store_content: bool = True
 
     @property
     def origins(self) -> list[str]:
