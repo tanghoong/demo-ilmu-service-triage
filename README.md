@@ -35,6 +35,9 @@ Browser (TS/Vite)  ──POST /api/triage──►  FastAPI          ──►  
 sends. `needs_human` is about whether an agent must *review the draft before it goes out* —
 not about whether a bot is allowed to answer on its own.
 
+> Deploying this somewhere real? Read **[DEPLOYMENT.md](DEPLOYMENT.md)** first. Two of the
+> demo's defaults are wrong for production and both fail silently.
+
 ## Run it
 
 **Docker (how it deploys):**
