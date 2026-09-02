@@ -103,6 +103,8 @@ Every setting is an environment variable. Names are the uppercase field names fr
 | `AUDIT_DB_PATH` | `/srv/data/audit.db` *(set in Dockerfile)* | Must be on a writable, persistent volume |
 | `AUDIT_STORE_CONTENT` | `true` | **Set `0`** (§1.2) |
 | `PORT` | `8000` *(set in Dockerfile)* | The container binds `0.0.0.0:$PORT`. Cloud Run sets this for you |
+| `WEB_BIND` | `127.0.0.1` *(compose only)* | Host interface the published port binds to. **Leave on loopback** whenever a reverse proxy fronts this — see §4.4 |
+| `WEB_PORT` | `8100` *(compose only)* | Host port. Container side is always 8000 |
 
 ---
 
@@ -143,13 +145,38 @@ docker exec <container> sh -c 'touch /srv/data/.wtest && rm /srv/data/.wtest && 
 
 ### 4.3 Compose (single host)
 
-`compose.yaml` maps host `8100` → container `8000`. Host 8000 was already taken on the dev
-machine; change the host side freely, leave the container side alone.
-
 ```bash
 echo "ILMU_API_KEY=sk-..." > .env
 echo "AUDIT_STORE_CONTENT=0" >> .env
 docker compose up -d --build
+```
+
+Published as `${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8100}:8000`. Container side is always
+8000; change only the host side. Host 8000 was taken on the dev machine, hence 8100.
+
+### 4.4 The published port binds to loopback on purpose
+
+`docker compose` publishes to **all interfaces** unless you name one. A plain
+`"8100:8000"` on a host with a public IP puts the container straight on the internet —
+past whatever terminates TLS, with the client's real IP replaced by the proxy's and no
+certificate at all. Docker also writes its own iptables rules, so a host firewall that
+looks correct will not save you.
+
+The default here is therefore `127.0.0.1`. Behind Caddy, nginx, Traefik or a Cloudflare
+tunnel this is what you want: the proxy reaches the service over loopback, and nothing
+else can.
+
+Only set `WEB_BIND=0.0.0.0` when nothing is fronting the service *and* you have accepted
+that there is no TLS and no authentication (§1.3). If a reverse proxy runs in its own
+container, put both on a shared Docker network and address the service by name instead —
+then publish no host port at all.
+
+```bash
+# Default: reachable only from the host. Correct behind a proxy.
+docker compose up -d
+
+# Explicitly public. Understand §1.3 before doing this.
+WEB_BIND=0.0.0.0 WEB_PORT=9100 docker compose up -d
 ```
 
 ---
@@ -378,6 +405,8 @@ Blocking, in this order:
 - [ ] Authentication in front of `/api/triage` (§1.3)
 - [ ] `DELETE /api/audit*` removed or admin-gated (§1.4)
 - [ ] `/srv/data` on a persistent volume, writable by uid 10001 (§4.2)
+- [ ] Published port on loopback unless deliberately public; verify with
+      `docker compose ps` that it reads `127.0.0.1:...`, not `0.0.0.0:...` (§4.4)
 - [ ] Single replica, or §6 addressed first
 - [ ] Alert on `/api/health` `mode == "mock"`
 - [ ] Post-deploy checks in §12 all pass, especially check 3

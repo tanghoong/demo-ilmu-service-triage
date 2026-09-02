@@ -3,7 +3,11 @@ services:
     build: .
     image: ilmu-service-triage:latest
     ports:
-      - "8100:8000"
+      # Bind to loopback by default: on a host with a public IP, "8100:8000"
+      # would publish the container straight to the internet, past whatever
+      # reverse proxy terminates TLS. Set WEB_BIND=0.0.0.0 only when nothing
+      # else is fronting this.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8100}:8000"
     environment:
       # The key is read from your shell / .env — never baked into the image.
       # Leave it unset and the service runs its deterministic stub instead.

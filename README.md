@@ -51,6 +51,10 @@ Open **http://localhost:8100**. The image builds the frontend in a node stage an
 the static bundle into the Python stage, so the browser gets the UI and the API from the
 same origin — no CORS, no second service, nothing to reverse-proxy.
 
+The port publishes to `127.0.0.1` by default, so on a host with a public IP the container
+is not exposed to the internet by accident. Behind a reverse proxy that is what you want;
+to publish it deliberately, `WEB_BIND=0.0.0.0 WEB_PORT=9100 docker compose up -d`.
+
 **Local dev (hot reload):**
 
 ```bash
