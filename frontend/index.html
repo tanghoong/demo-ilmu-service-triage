@@ -8,58 +8,55 @@
   </head>
   <body>
     <main class="shell">
-      <header>
-        <h1>Service Triage <span class="badge" id="mode">…</span></h1>
-        <p class="sub">
-          Paste a customer message in Bahasa Malaysia, English, Chinese or Manglish.
-          The browser calls <code>/api/triage</code> only — ILMU is called server-side.
-        </p>
+      <header class="topbar">
+        <h1>Service Triage</h1>
+        <span class="badge" id="mode">…</span>
+        <span class="tagline">Server-side ILMU · BM / EN / 中文 / Manglish · the browser only calls <code>/api</code></span>
       </header>
 
-      <section class="panel">
-        <div class="row">
-          <label>Channel
-            <select id="channel">
-              <option value="web">web</option>
-              <option value="whatsapp">whatsapp</option>
-              <option value="email">email</option>
-              <option value="phone">phone</option>
-            </select>
-          </label>
-          <label>Customer tier
-            <select id="tier">
-              <option value="standard">standard</option>
-              <option value="free">free</option>
-              <option value="enterprise">enterprise</option>
-            </select>
-          </label>
-        </div>
+      <div class="grid">
+        <section class="panel compose">
+          <div class="row">
+            <label>Channel
+              <select id="channel">
+                <option value="web">web</option>
+                <option value="whatsapp">whatsapp</option>
+                <option value="email">email</option>
+                <option value="phone">phone</option>
+              </select>
+            </label>
+            <label>Tier
+              <select id="tier">
+                <option value="standard">standard</option>
+                <option value="free">free</option>
+                <option value="enterprise">enterprise</option>
+              </select>
+            </label>
+            <button id="submit">Triage</button>
+          </div>
 
-        <textarea id="message" rows="8" maxlength="4000"
-          placeholder="e.g. Bil saya bulan ni RM320, tapi biasa RM90 je. Tolong semak, kalau tak saya report kat MCMC."></textarea>
+          <textarea id="message" rows="4" maxlength="4000"
+            placeholder="Bil saya bulan ni RM320, tapi biasa RM90 je. Tolong semak, kalau tak saya report kat MCMC."></textarea>
 
-        <div class="row">
-          <button id="submit">Triage</button>
           <div class="samples" id="samples"></div>
-        </div>
-      </section>
+        </section>
 
-      <section id="result"></section>
+        <section id="result" class="panel result">
+          <p class="hint">Triage a message to see the decision.</p>
+        </section>
+      </div>
 
-      <section class="panel" id="history-panel">
+      <section class="panel history-panel">
         <div class="history-head">
           <h2>History <span class="count" id="history-count"></span></h2>
+          <div id="stats" class="stats"></div>
           <div class="history-actions">
-            <button class="ghost" id="refresh">Refresh</button>
-            <button class="ghost danger" id="clear">Clear all</button>
+            <button class="ghost" id="refresh" title="Reload from the server">↻</button>
+            <button class="ghost danger" id="clear">Clear</button>
           </div>
         </div>
-        <p class="hint">
-          Read back from the SQLite audit trail on the server, not from this browser.
-          Tick any two rows to compare them side by side.
-        </p>
-        <div id="stats" class="stats"></div>
         <div id="history"></div>
+        <div class="pager" id="pager"></div>
         <div id="compare"></div>
       </section>
     </main>

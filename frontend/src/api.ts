@@ -31,7 +31,8 @@ export const triage = (body: TriageRequest) =>
 export const health = () =>
   call<{ mode: string; model: string; stores_content: boolean }>("/api/health");
 
-export const auditPage = (limit = 25) => call<AuditPage>(`/api/audit?limit=${limit}`);
+export const auditPage = (limit = 8, offset = 0) =>
+  call<AuditPage>(`/api/audit?limit=${limit}&offset=${offset}`);
 
 export const auditDelete = (requestId: string) =>
   call<{ deleted: string }>(`/api/audit/${requestId}`, { method: "DELETE" });
