@@ -7,5 +7,5 @@
     "dev:api": "cd backend && (.venv/Scripts/python.exe app_run.py || .venv/bin/python app_run.py)",
     "dev:web": "cd frontend && npm run dev"
   },
-  "devDependencies": { "concurrently": "^9.1.2" }
+  "devDependencies": { "concurrently": "^9.2.5" }
 }
